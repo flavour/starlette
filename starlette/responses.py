@@ -41,8 +41,10 @@ class Response:
         headers: typing.Mapping[str, str] = None,
         media_type: str = None,
         background: BackgroundTask = None,
+        status_phrase: str = None,
     ) -> None:
         self.status_code = status_code
+        self.status_phrase = status_phrase  
         if media_type is not None:
             self.media_type = media_type
         self.background = background
@@ -150,13 +152,14 @@ class Response:
         )
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        await send(
-            {
+        message = {
                 "type": "http.response.start",
                 "status": self.status_code,
                 "headers": self.raw_headers,
             }
-        )
+        if self.status_phrase:
+            message["phrase"] = self.status_phrase
+        await send(message)
         await send({"type": "http.response.body", "body": self.body})
 
         if self.background is not None:
@@ -233,13 +236,14 @@ class StreamingResponse(Response):
                 break
 
     async def stream_response(self, send: Send) -> None:
-        await send(
-            {
+         message = {
                 "type": "http.response.start",
                 "status": self.status_code,
                 "headers": self.raw_headers,
             }
-        )
+        if self.status_phrase:
+            message["phrase"] = self.status_phrase
+        await send(message)
         async for chunk in self.body_iterator:
             if not isinstance(chunk, bytes):
                 chunk = chunk.encode(self.charset)
